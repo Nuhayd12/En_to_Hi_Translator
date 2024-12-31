@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Translator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>English to Hindi Voice Translator</h1>
+        <p class="info">Active only between 9:30 PM and 10:00 PM.</p>
+        
+        <!-- Adjusted Textarea for better user experience -->
+        <textarea id="inputText" placeholder="Speak English by clicking below..." rows="5" style="width: 100%;" disabled></textarea>
+        
+        <!-- Microphone button -->
+        <button id="microphoneButton">🎤 Speak</button>
+        
+        <p class="output"><strong>Translation:</strong> <span id="translationOutput"></span></p>
+    </div>
+
+    <script>
+        // Add event listener for the microphone button
+        document.getElementById("microphoneButton").addEventListener("click", () => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then((stream) => {
+                        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                        recognition.lang = 'en-US';
+                        recognition.continuous = true;  // Keep recognition running
+                        recognition.interimResults = true;  // Show interim results while speaking
+                        recognition.start();
+
+                        // Update text area as user speaks
+                        recognition.onresult = function(event) {
+                            let transcript = '';
+                            for (let i = event.resultIndex; i < event.results.length; i++) {
+                                transcript += event.results[i][0].transcript;
+                            }
+
+                            // Update the inputText area with the transcribed text
+                            document.getElementById("inputText").value = transcript;
+
+                            // Translate the transcribed text in real-time
+                            fetchTranslation(transcript);
+                        };
+
+                        recognition.onerror = function(event) {
+                            console.error("Speech recognition error", event.error);
+                        };
+
+                        recognition.onend = function() {
+                            console.log("Speech recognition ended");
+                        };
+                    })
+                    .catch((err) => {
+                        alert("Unable to access your microphone.");
+                    });
+            } else {
+                alert("Speech recognition not supported in this browser.");
+            }
+        });
+
+        // Function to send text to the backend for translation
+        function fetchTranslation(text) {
+            fetch("/translate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: `text=${encodeURIComponent(text)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById("translationOutput").textContent = data.error;
+                } else {
+                    // Update translation output in real-time
+                    document.getElementById("translationOutput").textContent = data.translation;
+                }
+            })
+            .catch(error => console.error("Error:", error));
+        }
+    </script>
+</body>
+</html>
