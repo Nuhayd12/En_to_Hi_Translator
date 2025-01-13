@@ -8,9 +8,7 @@ from datetime import datetime
 from keras.layers import Input, LSTM, Dense
 from keras.models import Model
 
-# --- Model Loading (same as your existing model) ---
-
-# Load your tokenization details
+# --- Model Loading ---
 input_features_dict = np.load("Data/input_features_dict.npy", allow_pickle=True).item()
 target_features_dict = np.load("Data/target_features_dict.npy", allow_pickle=True).item()
 reverse_target_features_dict = np.load("Data/reverse_target_features_dict.npy", allow_pickle=True).item()
@@ -22,7 +20,7 @@ num_decoder_tokens = len(target_features_dict)
 
 dimensionality = 256
 
-# Define the model architecture (same as before)
+# Define the model architecture
 encoder_inputs = Input(shape=(None, num_encoder_tokens))
 encoder_lstm = LSTM(dimensionality, return_state=True)
 encoder_outputs, state_h, state_c = encoder_lstm(encoder_inputs)
@@ -36,7 +34,7 @@ decoder_outputs = decoder_dense(decoder_outputs)
 
 model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
 
-# Load the trained model (replace this with the correct path if necessary)
+# Load the trained model
 model.load_weights("Data/trained_model.keras")
 
 # Define inference encoder model
@@ -56,7 +54,6 @@ decoder_outputs = decoder_dense(decoder_outputs)
 decoder_model = Model([decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states)
 
 # --- Speech Recognition Integration ---
-
 recognizer = sr.Recognizer()
 
 def listen_to_audio():
@@ -66,7 +63,6 @@ def listen_to_audio():
         print("Listening...")
         audio = recognizer.listen(source)
         try:
-            # Convert speech to text using Google's Speech-to-Text API
             english_text = recognizer.recognize_google(audio)
             print(f"Recognized text: {english_text}")
             return english_text
@@ -78,7 +74,6 @@ def listen_to_audio():
             return None
 
 # --- Translation Function (Word-by-Word) ---
-
 def translate_word_to_hindi(english_word):
     # Normalize and preprocess the word (remove punctuation, make it lowercase)
     english_word = re.sub(r'[^\w\s]', '', english_word).lower()
@@ -90,7 +85,12 @@ def translate_word_to_hindi(english_word):
     for t, word in enumerate(english_word.split()):
         if word in input_features_dict:
             input_sequence[0, t, input_features_dict[word]] = 1.0
-
+        else:
+            print(f"Word '{word}' not found in input_features_dict")  # Debugging line
+    
+    # Debugging: Check the shape of input_sequence and whether it's being populated correctly
+    print(f"Input sequence for '{english_word}': {input_sequence}")
+    
     # Predict the Hindi translation for the word
     states_value = encoder_model.predict(input_sequence)
 
@@ -106,6 +106,10 @@ def translate_word_to_hindi(english_word):
         sampled_token_index = np.argmax(output_tokens[0, -1, :])
         sampled_token = reverse_target_features_dict[sampled_token_index]
         
+        # Debugging: Log the output token and sampled token at each step
+        print(f"Output tokens: {output_tokens[0, -1, :]}")
+        print(f"Sampled token index: {sampled_token_index}, Sampled token: {sampled_token}")
+        
         if sampled_token == '<END>':
             break  # Stop when the <END> token is encountered
         
@@ -119,21 +123,8 @@ def translate_word_to_hindi(english_word):
     # Only return the first word (without <END> token)
     return decoded_word[0] if decoded_word else "Translation error"
 
-# --- Time Check --- 
-
-def is_translation_time():
-    now = datetime.now()
-    start_time = now.replace(hour=14, minute=30, second=0, microsecond=0)  # 9:30 PM
-    end_time = now.replace(hour=22, minute=0, second=0, microsecond=0)  # 10:00 PM
-    return start_time <= now <= end_time
-
-# --- GUI Implementation --- 
-
+# --- GUI Implementation ---
 def start_translation():
-    if not is_translation_time():
-        messagebox.showinfo("Taking Rest", "Taking rest, see you tomorrow!")
-        return
-
     english_text = listen_to_audio()
     if english_text:
         words = english_text.split()
